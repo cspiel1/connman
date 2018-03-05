@@ -22,6 +22,7 @@
 #define __CONNMAN_ACD_H
 
 #include <stdint.h>
+#include <glib.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,6 +33,8 @@ struct _ACDHost;
 typedef struct _ACDHost ACDHost;
 
 ACDHost *acdhost_new(int ifindex);
+
+typedef void (*ACDHostEventFunc) (ACDHost *acd, gpointer user_data);
 
 #ifdef __cplusplus
 }
