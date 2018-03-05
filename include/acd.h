@@ -21,6 +21,8 @@
 #ifndef __CONNMAN_ACD_H
 #define __CONNMAN_ACD_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -28,6 +30,9 @@ extern "C" {
 struct _ACDHost;
 
 typedef struct _ACDHost ACDHost;
+
+ACDHost *acdhost_new(int ifindex);
+int acdhost_start(ACDHost *acd, uint32_t ip);
 
 #ifdef __cplusplus
 }
