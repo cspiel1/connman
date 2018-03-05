@@ -458,3 +458,32 @@ static int acd_recv_arp_packet(ACDHost *acd) {
 
 	return 0;
 }
+
+void acdhost_register_event(ACDHost *acd,
+			    ACDHostEvent event,
+			    ACDHostEventFunc func,
+			    gpointer user_data)
+{
+	switch (event) {
+	case ACDHOST_EVENT_IPV4_AVAILABLE:
+		acd->ipv4_available_cb = func;
+		acd->ipv4_available_data = user_data;
+		break;
+	case ACDHOST_EVENT_IPV4_LOST:
+		acd->ipv4_lost_cb = func;
+		acd->ipv4_lost_data = user_data;
+		break;
+	case ACDHOST_EVENT_IPV4_CONFLICT:
+		acd->ipv4_conflict_cb = func;
+		acd->ipv4_conflict_data = user_data;
+		break;
+	case ACDHOST_EVENT_IPV4_MAXCONFLICT:
+		acd->ipv4_max_conflicts_cb = func;
+		acd->ipv4_max_conflicts_data = user_data;
+		break;
+	default:
+		connman_warn("Unknown %s event %d.", __FUNCTION__, event);
+		break;
+	}
+}
+
