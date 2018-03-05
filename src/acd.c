@@ -333,10 +333,50 @@ static void acdhost_stop(ACDHost *acd)
 
 static gboolean acd_defend_timeout(gpointer acd_data)
 {
+	ACDHost *acd = acd_data;
+
+	debug(acd, "back to MONITOR mode");
+
+	acd->conflicts = 0;
+	acd->state = ACD_MONITOR;
+
+	return FALSE;
+}
+
+static char *get_ip(uint32_t ip)
+{
+	struct in_addr addr;
+
+	addr.s_addr = ip;
+
+	return g_strdup(inet_ntoa(addr));
 }
 
 static gboolean acd_announce_timeout(gpointer acd_data)
 {
+	ACDHost *acd = acd_data;
+	uint32_t ip;
+
+	debug(acd, "acd announce timeout (retries %d)", acd->retry_times);
+
+	if (acd->retry_times != ANNOUNCE_NUM) {
+		acd->retry_times++;
+		send_announce_packet(acd);
+		return FALSE;
+	}
+
+	ip = htonl(acd->requested_ip);
+	debug(acd, "switching to monitor mode");
+	acd->state = ACD_MONITOR;
+	acd->assigned_ip = get_ip(ip);
+
+	if (acd->ipv4_available_cb)
+		acd->ipv4_available_cb(acd,
+					acd->ipv4_available_data);
+	acd->conflicts = 0;
+	acd->timeout = 0;
+
+	return FALSE;
 }
 
 static int acd_recv_arp_packet(ACDHost *acd) {
