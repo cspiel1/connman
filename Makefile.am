@@ -48,7 +48,8 @@ backtrace_sources = src/backtrace.c
 endif
 
 shared_sources = src/shared/util.h src/shared/util.c \
-		src/shared/netlink.h src/shared/netlink.c
+		src/shared/netlink.h src/shared/netlink.c \
+		src/shared/random.h src/shared/random.c
 
 if DATAFILES
 
@@ -350,10 +351,11 @@ tools_wpad_test_LDADD = @GLIB_LIBS@ -lresolv
 
 tools_stats_tool_LDADD = @GLIB_LIBS@
 
-tools_dhcp_test_SOURCES = $(gdhcp_sources) tools/dhcp-test.c
+tools_dhcp_test_SOURCES = $(gdhcp_sources) $(shared_sources) tools/dhcp-test.c
 tools_dhcp_test_LDADD = @GLIB_LIBS@
 
-tools_dhcp_server_test_SOURCES = $(gdhcp_sources) tools/dhcp-server-test.c
+tools_dhcp_server_test_SOURCES = $(gdhcp_sources) $(shared_sources) \
+		tools/dhcp-server-test.c
 tools_dhcp_server_test_LDADD = @GLIB_LIBS@
 
 tools_dbus_test_SOURCES = tools/dbus-test.c
