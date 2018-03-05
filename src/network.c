@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <string.h>
 
+#include <connman/acd.h>
 #include "connman.h"
 
 /*
@@ -171,6 +172,14 @@ static void dhcp_success(struct connman_network *network)
 	if (!ipconfig_ipv4)
 		return;
 
+	if (connman_setting_get_bool("AddressConflictDetection")) {
+		err = connman_service_start_acd(service);
+		if (!err)
+			return;
+
+		/* On error proceed without ACD. */
+	}
+
 	err = __connman_ipconfig_address_add(ipconfig_ipv4);
 	if (err < 0)
 		goto err;
@@ -236,6 +245,14 @@ static int set_connected_manual(struct connman_network *network)
 
 	if (!__connman_ipconfig_get_local(ipconfig))
 		__connman_service_read_ip4config(service);
+
+	if (connman_setting_get_bool("AddressConflictDetection")) {
+		err = connman_service_start_acd(service);
+		if (!err)
+			return err;
+
+		/* On error proceed without ACD. */
+	}
 
 	err = __connman_ipconfig_address_add(ipconfig);
 	if (err < 0)
