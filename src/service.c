@@ -35,6 +35,7 @@
 #include <connman/setting.h>
 #include <connman/agent.h>
 #include <connman/acd.h>
+#include <shared/arp.h>
 
 #include "connman.h"
 
@@ -7499,8 +7500,26 @@ void __connman_service_cleanup(void)
 	dbus_connection_unref(connection);
 }
 
+static void acdhost_ipv4_available(ACDHost *acd, gpointer user_data)
+{
+}
+
+static void acdhost_ipv4_lost(ACDHost *acd, gpointer user_data)
+{
+}
+
+static void acdhost_ipv4_conflict(ACDHost *acd, gpointer user_data)
+{
+}
+
+static void acdhost_ipv4_maxconflict(ACDHost *acd, gpointer user_data)
+{
+}
+
 int connman_service_start_acd(struct connman_service *service)
 {
+	const char* address;
+	struct in_addr addr;
 	if (!service)
 		return -EINVAL;
 
@@ -7508,6 +7527,40 @@ int connman_service_start_acd(struct connman_service *service)
 		connman_error("Service has no IPv4 configuration");
 		return -EINVAL;
 	}
+
+	if (!service->acdhost) {
+		int index;
+
+		index = __connman_ipconfig_get_index(service->ipconfig_ipv4);
+		service->acdhost = acdhost_new(index);
+		if (!service->acdhost) {
+			connman_error("Could not create ACD data structure");
+			return -EINVAL;
+		}
+
+		acdhost_register_event(service->acdhost,
+				ACDHOST_EVENT_IPV4_AVAILABLE,
+				acdhost_ipv4_available, service);
+		acdhost_register_event(service->acdhost,
+				ACDHOST_EVENT_IPV4_LOST,
+				acdhost_ipv4_lost, service);
+		acdhost_register_event(service->acdhost,
+				ACDHOST_EVENT_IPV4_CONFLICT,
+				acdhost_ipv4_conflict, service);
+		acdhost_register_event(service->acdhost,
+				ACDHOST_EVENT_IPV4_MAXCONFLICT,
+				acdhost_ipv4_maxconflict, service);
+	}
+
+	address = __connman_ipconfig_get_local(service->ipconfig_ipv4);
+	if (!address)
+		return -EINVAL;
+
+	connman_info("Starting ACD for address %s", address);
+	if (inet_pton(AF_INET, address, &addr) != 1)
+		connman_error("Could not convert address %s", address);
+
+	acdhost_start(service->acdhost, htonl(addr.s_addr));
 
 	return 0;
 }
