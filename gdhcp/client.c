@@ -607,38 +607,6 @@ static gboolean send_announce_packet(gpointer dhcp_data)
 	return TRUE;
 }
 
-static void get_interface_mac_address(int index, uint8_t *mac_address)
-{
-	struct ifreq ifr;
-	int sk, err;
-
-	sk = socket(PF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
-	if (sk < 0) {
-		perror("Open socket error");
-		return;
-	}
-
-	memset(&ifr, 0, sizeof(ifr));
-	ifr.ifr_ifindex = index;
-
-	err = ioctl(sk, SIOCGIFNAME, &ifr);
-	if (err < 0) {
-		perror("Get interface name error");
-		goto done;
-	}
-
-	err = ioctl(sk, SIOCGIFHWADDR, &ifr);
-	if (err < 0) {
-		perror("Get mac address error");
-		goto done;
-	}
-
-	memcpy(mac_address, ifr.ifr_hwaddr.sa_data, 6);
-
-done:
-	close(sk);
-}
-
 void g_dhcpv6_client_set_retransmit(GDHCPClient *dhcp_client)
 {
 	if (!dhcp_client)
