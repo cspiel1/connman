@@ -37,6 +37,7 @@
 #include <arpa/inet.h>
 
 #include "shared/arp.h"
+#include "shared/random.h"
 
 int send_arp_packet(uint8_t* source_eth, uint32_t source_ip,
 		    uint32_t target_ip, int ifindex)
@@ -109,6 +110,23 @@ int arp_socket(int ifindex)
 	}
 
 	return fd;
+}
+
+/**
+ * Return a random link local IP (in host byte order)
+ */
+uint32_t random_ip(void)
+{
+	unsigned tmp;
+
+	do {
+		uint64_t rand;
+		get_random(&rand);
+		tmp = rand;
+		tmp = tmp & IN_CLASSB_HOST;
+	} while (tmp > (IN_CLASSB_HOST - 0x0200));
+
+	return (LINKLOCAL_ADDR + 0x0100) + tmp;
 }
 
 void get_interface_mac_address(int index, uint8_t *mac_address)
