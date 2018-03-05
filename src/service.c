@@ -99,6 +99,7 @@ struct connman_service {
 	bool mdns;
 	bool mdns_config;
 	ACDHost *acdhost;
+	guint ipv4ll_timeout;
 	char *hostname;
 	char *domainname;
 	char **timeservers;
@@ -7529,8 +7530,45 @@ err:
 				CONNMAN_NETWORK_ERROR_CONFIGURE_FAIL);
 }
 
-static int service_start_ipv4ll(struct connman_service *service)
+static int service_start_ipv4ll(struct connman_service *service) {
+	struct in_addr taddr;
+	char* address;
+
+	if (!service->ipconfig_ipv4) {
+		connman_error("Service has no IpV4 configuration.");
+		return -EINVAL;
+	}
+
+	/* Apply random ip number. */
+	taddr.s_addr = htonl(random_ip());
+	address = inet_ntoa(taddr);
+	if (!address) {
+		connman_error("Could not convert IPv4LL random address %u.",
+				taddr.s_addr);
+		return -EINVAL;
+	}
+	__connman_ipconfig_set_local(service->ipconfig_ipv4, address);
+
+	connman_info("Probing IPv4LL address %s.", address);
+	return connman_service_start_acd(service);
+}
+
+static gboolean start_ipv4ll_ontimeout(gpointer acd_data)
 {
+	struct connman_service *service = acd_data;
+
+	if (!service)
+		return FALSE;
+
+	if (!service->ipv4ll_timeout)
+		return FALSE;
+
+	/* Start IPv4LL acd. */
+	if (service_start_ipv4ll(service) < 0)
+		connman_error("Could not start ipv4ll. "
+				"No address will be assigned.");
+
+	return FALSE;
 }
 
 static void acdhost_ipv4_lost(ACDHost *acd, gpointer user_data)
@@ -7586,6 +7624,12 @@ static void acdhost_ipv4_maxconflict(ACDHost *acd, gpointer user_data)
 	connman_info("Had maximum number of conflicts. Next ipv4ll address will be "
 			"tried in %d seconds.", RATE_LIMIT_INTERVAL);
 	/* Wait, then start IPv4LL acd. */
+	service->ipv4ll_timeout =
+		g_timeout_add_seconds_full(G_PRIORITY_HIGH,
+				RATE_LIMIT_INTERVAL,
+				start_ipv4ll_ontimeout,
+				service,
+				NULL);
 }
 
 int connman_service_start_acd(struct connman_service *service)
@@ -7599,6 +7643,11 @@ int connman_service_start_acd(struct connman_service *service)
 		connman_error("Service has no IPv4 configuration.");
 		return -EINVAL;
 	}
+
+	if (service->ipv4ll_timeout > 0)
+		g_source_remove(service->ipv4ll_timeout);
+
+	service->ipv4ll_timeout = 0;
 
 	if (!service->acdhost) {
 		int index;
