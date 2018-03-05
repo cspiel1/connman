@@ -18,6 +18,7 @@
 #include <connman/log.h>
 #include <connman/inet.h>
 #include <shared/arp.h>
+#include <shared/random.h>
 #include <glib.h>
 #include <stdio.h>
 #include <errno.h>
@@ -52,6 +53,8 @@ static void stop_listening(ACDHost *acd);
 static gboolean acd_listener_event(GIOChannel *channel, GIOCondition condition,
 							gpointer acd_data);
 static int acd_recv_arp_packet(ACDHost *acd);
+static gboolean send_probe_packet(gpointer acd_data);
+static gboolean acd_probe_timeout(gpointer acd_data);
 
 static void debug(ACDHost *acd, const char *format, ...)
 {
@@ -172,5 +175,57 @@ static gboolean acd_listener_event(GIOChannel *channel, GIOCondition condition,
 
 	acd_recv_arp_packet(acd);
 	return TRUE;
+}
+
+static gboolean send_probe_packet(gpointer acd_data)
+{
+	guint timeout;
+	ACDHost *acd = acd_data;
+
+	debug(acd, "sending ARP probe request");
+
+	if (acd->retry_times == 1) {
+		acd->state = ACD_PROBE;
+		start_listening(acd);
+	}
+	send_arp_packet(acd->mac_address, 0,
+			acd->requested_ip, acd->ifindex);
+
+	if (acd->retry_times < PROBE_NUM) {
+		/*add a random timeout in range of PROBE_MIN to PROBE_MAX*/
+		timeout = random_delay_ms(PROBE_MAX-PROBE_MIN);
+		timeout += PROBE_MIN*1000;
+	} else
+		timeout = (ANNOUNCE_WAIT * 1000);
+
+	acd->timeout = g_timeout_add_full(G_PRIORITY_HIGH,
+						 timeout,
+						 acd_probe_timeout,
+						 acd,
+						 NULL);
+	return FALSE;
+}
+
+static gboolean acd_probe_timeout(gpointer acd_data)
+{
+	ACDHost *acd = acd_data;
+
+	if (!acd->timeout)
+		return FALSE;
+
+	debug(acd, "acd probe timeout (retries %d)", acd->retry_times);
+
+	if (acd->retry_times == PROBE_NUM) {
+		acd->state = ACD_ANNOUNCE;
+		acd->retry_times = 0;
+
+		acd->retry_times++;
+		send_announce_packet(acd);
+		return FALSE;
+	}
+	acd->retry_times++;
+	send_probe_packet(acd);
+
+	return FALSE;
 }
 
