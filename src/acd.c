@@ -19,6 +19,10 @@
 #include <connman/inet.h>
 #include <shared/arp.h>
 #include <glib.h>
+#include <stdio.h>
+#include <errno.h>
+#include <unistd.h>
+#include <stdarg.h>
 
 typedef enum _acd_state {
 	ACD_PROBE,
@@ -42,6 +46,25 @@ struct _ACDHost {
 	guint timeout;
 	guint listener_watch;
 };
+
+static int start_listening(ACDHost *acd);
+static void stop_listening(ACDHost *acd);
+static gboolean acd_listener_event(GIOChannel *channel, GIOCondition condition,
+							gpointer acd_data);
+static int acd_recv_arp_packet(ACDHost *acd);
+
+static void debug(ACDHost *acd, const char *format, ...)
+{
+	char str[256];
+	va_list ap;
+
+	va_start(ap, format);
+
+	if (vsnprintf(str, sizeof(str), format, ap) > 0)
+		connman_info("ACD index %d: %s", acd->ifindex, str);
+
+	va_end(ap);
+}
 
 ACDHost *acdhost_new(int ifindex)
 {
@@ -86,3 +109,69 @@ error:
 	g_free(acd);
 	return NULL;
 }
+
+static int start_listening(ACDHost *acd)
+{
+	GIOChannel *listener_channel;
+	int listener_sockfd;
+
+	if (acd->listen_on)
+		return 0;
+
+	debug(acd, "start listening");
+
+	listener_sockfd = arp_socket(acd->ifindex);
+	if (listener_sockfd < 0)
+		return -EIO;
+
+	listener_channel = g_io_channel_unix_new(listener_sockfd);
+	if (!listener_channel) {
+		/* Failed to create listener channel */
+		close(listener_sockfd);
+		return -EIO;
+	}
+
+	acd->listen_on = TRUE;
+	acd->listener_sockfd = listener_sockfd;
+
+	g_io_channel_set_close_on_unref(listener_channel, TRUE);
+	acd->listener_watch =
+			g_io_add_watch_full(listener_channel, G_PRIORITY_HIGH,
+				G_IO_IN | G_IO_NVAL | G_IO_ERR | G_IO_HUP,
+						acd_listener_event, acd,
+								NULL);
+	g_io_channel_unref(listener_channel);
+
+	return 0;
+}
+
+static void stop_listening(ACDHost *acd)
+{
+	if (!acd->listen_on)
+		return;
+
+	if (acd->listener_watch > 0)
+		g_source_remove(acd->listener_watch);
+	acd->listen_on = FALSE;
+	acd->listener_sockfd = -1;
+	acd->listener_watch = 0;
+}
+
+static gboolean acd_listener_event(GIOChannel *channel, GIOCondition condition,
+							gpointer acd_data)
+{
+	ACDHost *acd = acd_data;
+
+	if (condition & (G_IO_NVAL | G_IO_ERR | G_IO_HUP)) {
+		acd->listener_watch = 0;
+		return FALSE;
+	}
+
+	if (!acd->listen_on)
+		return FALSE;
+
+	acd_recv_arp_packet(acd);
+
+	return TRUE;
+}
+
