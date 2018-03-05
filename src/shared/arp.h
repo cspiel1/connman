@@ -38,4 +38,6 @@ int send_arp_packet(uint8_t* source_eth, uint32_t source_ip,
 		    uint32_t target_ip, int ifindex);
 int arp_socket(int ifindex);
 
+void get_interface_mac_address(int index, uint8_t *mac_address);
+
 #endif
