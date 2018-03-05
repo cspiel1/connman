@@ -137,6 +137,8 @@ void connman_service_create_ip4config(struct connman_service *service,
 void connman_service_create_ip6config(struct connman_service *service,
 								int index);
 
+int connman_service_start_acd(struct connman_service *service);
+
 #ifdef __cplusplus
 }
 #endif
