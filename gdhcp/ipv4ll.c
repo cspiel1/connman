@@ -47,7 +47,7 @@ uint32_t ipv4ll_random_ip(void)
 	uint64_t rand;
 
 	do {
-		dhcp_get_random(&rand);
+		get_random(&rand);
 		tmp = rand;
 		tmp = tmp & IN_CLASSB_HOST;
 	} while (tmp > (IN_CLASSB_HOST - 0x0200));

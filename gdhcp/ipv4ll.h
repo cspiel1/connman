@@ -22,7 +22,7 @@
 #ifndef __G_IPV4LL_H
 #define __G_IPV4LL_H
 
-#include <glib.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
