@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
+#include <netinet/if_ether.h>
+#include <string.h>
 
 typedef enum _acd_state {
 	ACD_PROBE,
@@ -29,6 +31,13 @@ typedef enum _acd_state {
 	ACD_MONITOR,
 	ACD_DEFEND,
 } ACDState;
+
+static const char* acd_state_texts[] = {
+	"PROBE",
+	"ANNOUNCE",
+	"MONITOR",
+	"DEFEND"
+};
 
 struct _ACDHost {
 	int ref_count;
@@ -386,4 +395,83 @@ static gboolean acd_announce_timeout(gpointer acd_data)
 }
 
 static int acd_recv_arp_packet(ACDHost *acd) {
+	int bytes;
+	struct ether_arp arp;
+	uint32_t requested_ip;
+	int source_conflict;
+	int target_conflict;
+	bool probe;
+
+	memset(&arp, 0, sizeof(arp));
+	bytes = read(acd->listener_sockfd, &arp, sizeof(arp));
+	if (bytes < 0)
+		return bytes;
+
+	if (arp.arp_op != htons(ARPOP_REPLY) &&
+			arp.arp_op != htons(ARPOP_REQUEST))
+		return -EINVAL;
+
+	if (memcmp(arp.arp_sha, acd->mac_address, ETH_ALEN) == 0)
+		return 0;
+
+	requested_ip = htonl(acd->requested_ip);
+	source_conflict = !memcmp(arp.arp_spa, &requested_ip, sizeof(uint32_t));
+	probe = !memcmp(arp.arp_spa, "\0\0\0\0", sizeof(uint32_t));
+	target_conflict = probe &&
+		!memcmp(arp.arp_tpa, &requested_ip, sizeof(uint32_t));
+
+	if (!source_conflict && !target_conflict)
+		return 0;
+
+	acd->conflicts++;
+
+	char* confltxt = target_conflict ? "target" : "source";
+	debug(acd, "IPV4 %d %s conflicts detected for address %d.%d.%d.%d. "
+			"State=%s", acd->conflicts, confltxt,
+			(requested_ip >> 0)  & 0xff, (requested_ip >> 8) & 0xff,
+			(requested_ip >> 16) & 0xff, (requested_ip >>24) & 0xff,
+			acd_state_texts[acd->state] );
+	uint8_t* m=acd->mac_address;
+	uint8_t* o=arp.arp_sha;
+	debug(acd, "Our mac: %02x:%02x:%02x:%02x:%02x:%02x"
+				" other mac: %02x:%02x:%02x:%02x:%02x:%02x",
+			m[0], m[1], m[2],m[3], m[4], m[5],
+			o[0], o[1], o[2],o[3], o[4], o[5]);
+
+	if (acd->state == ACD_MONITOR) {
+		if (!source_conflict)
+			return 0;
+		acd->state = ACD_DEFEND;
+		debug(acd, "DEFEND mode conflicts : %d", acd->conflicts);
+		/*Try to defend with a single announce*/
+		send_announce_packet(acd);
+		return 0;
+	}
+
+	if (acd->state == ACD_DEFEND) {
+		if (!source_conflict) {
+			return 0;
+		} else if (acd->ipv4_lost_cb) {
+			debug(acd, "LOST ipv4 address %d.%d.%d.%d.",
+			(requested_ip >> 0)  & 0xff, (requested_ip >> 8) & 0xff,
+			(requested_ip >> 16) & 0xff, (requested_ip >>24) & 0xff );
+			acd->ipv4_lost_cb(acd, acd->ipv4_lost_data);
+			return 0;
+		}
+	}
+
+	acdhost_stop(acd);
+
+	if (acd->conflicts < MAX_CONFLICTS) {
+		/* we need a new request_ip */
+		if (acd->ipv4_conflict_cb)
+			acd->ipv4_conflict_cb(acd, acd->ipv4_conflict_data);
+	}
+	/* Here we got a lot of conflicts, RFC3927 and RFC5227 states that we have
+	 * to wait RATE_LIMIT_INTERVAL before retrying.
+	 */
+	else if (acd->ipv4_max_conflicts_cb)
+			acd->ipv4_max_conflicts_cb(acd,	acd->ipv4_max_conflicts_data);
+
+	return 0;
 }
