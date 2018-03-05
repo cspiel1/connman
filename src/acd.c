@@ -281,3 +281,63 @@ static gboolean send_announce_packet(gpointer acd_data)
 						NULL);
 	return TRUE;
 }
+
+int acdhost_start(ACDHost *acd, uint32_t ip)
+{
+	guint timeout;
+	int err;
+
+	connman_info("%s starting acd", __FUNCTION__);
+
+	remove_timeouts(acd);
+
+	err = start_listening(acd);
+	if (err)
+		return err;
+
+	acd->retry_times = 0;
+	acd->requested_ip = ip;
+
+	/* First wait a random delay to avoid storm of ARP requests on boot */
+	timeout = random_delay_ms(PROBE_WAIT);
+	acd->state = ACD_PROBE;
+
+	acd->retry_times++;
+	acd->timeout = g_timeout_add_full(G_PRIORITY_HIGH,
+						timeout,
+						send_probe_packet,
+						acd,
+						NULL);
+	return 0;
+}
+
+static void acdhost_stop(ACDHost *acd)
+{
+
+	stop_listening(acd);
+
+	remove_timeouts(acd);
+
+	if (acd->listener_watch > 0) {
+		g_source_remove(acd->listener_watch);
+		acd->listener_watch = 0;
+	}
+
+	acd->state = ACD_PROBE;
+	acd->retry_times = 0;
+	acd->requested_ip = 0;
+
+	g_free(acd->assigned_ip);
+	acd->assigned_ip = NULL;
+}
+
+static gboolean acd_defend_timeout(gpointer acd_data)
+{
+}
+
+static gboolean acd_announce_timeout(gpointer acd_data)
+{
+}
+
+static int acd_recv_arp_packet(ACDHost *acd) {
+}
