@@ -34,6 +34,7 @@
 #include <connman/storage.h>
 #include <connman/setting.h>
 #include <connman/agent.h>
+#include <connman/acd.h>
 
 #include "connman.h"
 
@@ -96,6 +97,7 @@ struct connman_service {
 	char **domains;
 	bool mdns;
 	bool mdns_config;
+	ACDHost *acdhost;
 	char *hostname;
 	char *domainname;
 	char **timeservers;
@@ -4831,6 +4833,7 @@ static void service_free(gpointer user_data)
 	g_free(service->phase2);
 	g_free(service->config_file);
 	g_free(service->config_entry);
+	g_free(service->acdhost);
 
 	if (service->stats.timer)
 		g_timer_destroy(service->stats.timer);
@@ -4887,6 +4890,8 @@ static void service_initialize(struct connman_service *service)
 
 	service->wps = false;
 	service->wps_advertizing = false;
+
+	service->acdhost = NULL;
 }
 
 /**
@@ -7489,4 +7494,17 @@ void __connman_service_cleanup(void)
 	g_free(services_notify);
 
 	dbus_connection_unref(connection);
+}
+
+int connman_service_start_acd(struct connman_service *service)
+{
+	if (!service)
+		return -EINVAL;
+
+	if (!service->ipconfig_ipv4) {
+		connman_error("Service has no IPv4 configuration");
+		return -EINVAL;
+	}
+
+	return 0;
 }
