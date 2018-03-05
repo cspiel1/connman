@@ -33,6 +33,8 @@
 #include <arpa/inet.h>
 
 #include <glib.h>
+
+#include "src/shared/random.h"
 #include "ipv4ll.h"
 #include "common.h"
 
@@ -50,17 +52,6 @@ uint32_t ipv4ll_random_ip(void)
 		tmp = tmp & IN_CLASSB_HOST;
 	} while (tmp > (IN_CLASSB_HOST - 0x0200));
 	return ((LINKLOCAL_ADDR + 0x0100) + tmp);
-}
-
-/**
- * Return a random delay in range of zero to secs*1000
- */
-guint ipv4ll_random_delay_ms(guint secs)
-{
-	uint64_t rand;
-
-	dhcp_get_random(&rand);
-	return rand % (secs * 1000);
 }
 
 int ipv4ll_send_arp_packet(uint8_t* source_eth, uint32_t source_ip,
