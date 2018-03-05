@@ -54,6 +54,9 @@ static gboolean acd_listener_event(GIOChannel *channel, GIOCondition condition,
 static int acd_recv_arp_packet(ACDHost *acd);
 static void send_probe_packet(gpointer acd_data);
 static gboolean acd_probe_timeout(gpointer acd_data);
+static gboolean send_announce_packet(gpointer acd_data);
+static gboolean acd_announce_timeout(gpointer acd_data);
+static gboolean acd_defend_timeout(gpointer acd_data);
 
 static void debug(ACDHost *acd, const char *format, ...)
 {
@@ -109,6 +112,14 @@ error:
 	g_free(acd->interface);
 	g_free(acd);
 	return NULL;
+}
+
+static void remove_timeout(ACDHost *acd)
+{
+	if (acd->timeout > 0)
+		g_source_remove(acd->timeout);
+
+	acd->timeout = 0;
 }
 
 static int start_listening(ACDHost *acd)
@@ -182,6 +193,7 @@ static void send_probe_packet(gpointer acd_data)
 	ACDHost *acd = acd_data;
 
 	debug(acd, "sending ARP probe request");
+	remove_timeout(acd);
 	if (acd->retry_times == 1) {
 		acd->state = ACD_PROBE;
 		start_listening(acd);
@@ -224,3 +236,30 @@ static gboolean acd_probe_timeout(gpointer acd_data)
 	return FALSE;
 }
 
+static gboolean send_announce_packet(gpointer acd_data)
+{
+	ACDHost *acd = acd_data;
+
+	debug(acd, "sending ACD announce request");
+
+	send_arp_packet(acd->mac_address,
+				acd->requested_ip,
+				acd->requested_ip,
+				acd->ifindex);
+
+	remove_timeout(acd);
+
+	if (acd->state == ACD_DEFEND)
+		acd->timeout = g_timeout_add_seconds_full(G_PRIORITY_HIGH,
+						DEFEND_INTERVAL,
+						acd_defend_timeout,
+						acd,
+						NULL);
+	else
+		acd->timeout = g_timeout_add_seconds_full(G_PRIORITY_HIGH,
+						ANNOUNCE_INTERVAL,
+						acd_announce_timeout,
+						acd,
+						NULL);
+	return TRUE;
+}
