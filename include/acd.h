@@ -41,6 +41,18 @@ void acd_host_stop(struct acd_host *acd);
 
 typedef void (*ACDHostEventFunc) (struct acd_host *acd, gpointer user_data);
 
+typedef enum {
+	ACDHOST_EVENT_IPV4_AVAILABLE,
+	ACDHOST_EVENT_IPV4_LOST,
+	ACDHOST_EVENT_IPV4_CONFLICT,
+	ACDHOST_EVENT_IPV4_MAXCONFLICT,
+} ACDHostEvent;
+
+void acdhost_register_event(struct acd_host *acd,
+			    ACDHostEvent event,
+			    ACDHostEventFunc func,
+			    gpointer user_data);
+
 #ifdef __cplusplus
 }
 #endif
