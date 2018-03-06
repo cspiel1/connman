@@ -82,3 +82,5 @@ vpn/connman-vpnd
 vpn/connman-vpn-dbus.conf
 vpn/connman-vpn.service
 vpn/net.connman.vpn.service
+*.swp
+tags
