@@ -23,6 +23,9 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdarg.h>
+#include <netinet/if_ether.h>
+#include <net/if_arp.h>
+#include <string.h>
 
 typedef enum _acd_state {
 	ACD_PROBE,
@@ -30,6 +33,13 @@ typedef enum _acd_state {
 	ACD_MONITOR,
 	ACD_DEFEND,
 } ACDState;
+
+static const char* acd_state_texts[] = {
+	"PROBE",
+	"ANNOUNCE",
+	"MONITOR",
+	"DEFEND"
+};
 
 struct _ACDHost {
 	int ref_count;
@@ -327,10 +337,44 @@ static void acdhost_stop(ACDHost *acd)
 
 static gboolean acd_defend_timeout(gpointer acd_data)
 {
+	ACDHost *acd = acd_data;
+
+	if (!acd->timeout)
+		return FALSE;
+
+	debug(acd, "back to MONITOR mode");
+
+	acd->conflicts = 0;
+	acd->state = ACD_MONITOR;
+
+	return FALSE;
 }
 
 static gboolean acd_announce_timeout(gpointer acd_data)
 {
+	ACDHost *acd = acd_data;
+
+	if (!acd->timeout)
+		return FALSE;
+
+	debug(acd, "acd announce timeout (retries %d)", acd->retry_times);
+
+	if (acd->retry_times != ANNOUNCE_NUM) {
+		acd->retry_times++;
+		send_announce_packet(acd);
+		return FALSE;
+	}
+
+	debug(acd, "switching to monitor mode");
+	acd->state = ACD_MONITOR;
+
+	if (acd->ipv4_available_cb)
+		acd->ipv4_available_cb(acd,
+					acd->ipv4_available_data);
+	acd->conflicts = 0;
+	acd->timeout = 0;
+
+	return FALSE;
 }
 
 static int acd_recv_arp_packet(ACDHost *acd) {
