@@ -84,3 +84,4 @@ vpn/connman-vpn.service
 vpn/net.connman.vpn.service
 *.swp
 tags
+.ycm_extra_conf.py
