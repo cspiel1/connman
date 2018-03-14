@@ -99,6 +99,7 @@ struct connman_service {
 	bool mdns;
 	bool mdns_config;
 	ACDHost *acdhost;
+	guint ipv4ll_timeout;
 	char *hostname;
 	char *domainname;
 	char **timeservers;
@@ -145,6 +146,7 @@ static struct connman_ipconfig *create_ip4config(struct connman_service *service
 static struct connman_ipconfig *create_ip6config(struct connman_service *service,
 		int index);
 static void dns_changed(struct connman_service *service);
+static void remove_ipv4ll_timeout(struct connman_service *service);
 
 struct find_data {
 	const char *path;
@@ -4893,6 +4895,7 @@ static void service_initialize(struct connman_service *service)
 	service->wps_advertizing = false;
 
 	service->acdhost = NULL;
+	service->ipv4ll_timeout = 0;
 }
 
 /**
@@ -6448,6 +6451,7 @@ int __connman_service_disconnect(struct connman_service *service)
 	service->connect_reason = CONNMAN_SERVICE_CONNECT_REASON_NONE;
 	service->proxy = CONNMAN_SERVICE_PROXY_METHOD_UNKNOWN;
 
+	remove_ipv4ll_timeout(service);
 	if (service->acdhost)
 		acdhost_stop(service->acdhost);
 
@@ -7532,6 +7536,48 @@ err:
 
 static int service_start_ipv4ll(struct connman_service *service)
 {
+	struct in_addr addr;
+	char* address;
+
+	if (!service->ipconfig_ipv4) {
+		connman_error("Service has no IPv4 configuration");
+		return -EINVAL;
+	}
+
+	/* Apply random IP number. */
+	addr.s_addr = htonl(random_ip());
+	address = inet_ntoa(addr);
+	if (!address) {
+		connman_error("Could not convert IPv4LL random address %u",
+				addr.s_addr);
+		return -EINVAL;
+	}
+	__connman_ipconfig_set_local(service->ipconfig_ipv4, address);
+
+	connman_info("Probing IPv4LL address %s", address);
+	return connman_service_start_acd(service);
+}
+
+static void remove_ipv4ll_timeout(struct connman_service *service)
+{
+	if (service->ipv4ll_timeout > 0) {
+		g_source_remove(service->ipv4ll_timeout);
+		service->ipv4ll_timeout = 0;
+	}
+}
+
+static gboolean start_ipv4ll_ontimeout(gpointer data)
+{
+	struct connman_service *service = data;
+
+	if (!service)
+		return FALSE;
+
+	/* Start IPv4LL ACD. */
+	if (service_start_ipv4ll(service) < 0)
+		connman_error("Could not start IPv4LL. No address will be assigned");
+
+	return FALSE;
 }
 
 static void acdhost_ipv4_lost(ACDHost *acd, gpointer user_data)
@@ -7582,9 +7628,16 @@ static void acdhost_ipv4_maxconflict(ACDHost *acd, gpointer user_data)
 {
 	struct connman_service *service = user_data;
 
+	remove_ipv4ll_timeout(service);
 	connman_info("Had maximum number of conflicts. Next IPv4LL address will be "
 			"tried in %d seconds", RATE_LIMIT_INTERVAL);
 	/* Wait, then start IPv4LL ACD. */
+	service->ipv4ll_timeout =
+		g_timeout_add_seconds_full(G_PRIORITY_HIGH,
+				RATE_LIMIT_INTERVAL,
+				start_ipv4ll_ontimeout,
+				service,
+				NULL);
 }
 
 int connman_service_start_acd(struct connman_service *service)
@@ -7598,6 +7651,8 @@ int connman_service_start_acd(struct connman_service *service)
 		connman_error("Service has no IPv4 configuration");
 		return -EINVAL;
 	}
+
+	remove_ipv4ll_timeout(service);
 
 	if (!service->acdhost) {
 		int index;
