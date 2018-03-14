@@ -2529,6 +2529,9 @@ static void append_properties(DBusMessageIter *dict, dbus_bool_t limited,
 
 	connman_dbus_dict_append_dict(dict, "Provider",
 						append_provider, service);
+
+	if (service->acdhost)
+		acdhost_append_dbus_property(service->acdhost, dict);
 }
 
 static void append_struct_service(DBusMessageIter *iter,
@@ -7658,7 +7661,7 @@ int connman_service_start_acd(struct connman_service *service)
 		int index;
 
 		index = __connman_ipconfig_get_index(service->ipconfig_ipv4);
-		service->acdhost = acdhost_new(index);
+		service->acdhost = acdhost_new(index, service->path);
 		if (!service->acdhost) {
 			connman_error("Could not create ACD data structure");
 			return -EINVAL;
