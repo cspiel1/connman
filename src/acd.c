@@ -373,8 +373,6 @@ static gboolean acd_announce_timeout(gpointer acd_data)
 		acd->ipv4_available_cb(acd,
 					acd->ipv4_available_data);
 	acd->conflicts = 0;
-	acd->timeout = 0;
-
 	return FALSE;
 }
 
