@@ -571,3 +571,8 @@ static void report_conflict(ACDHost *acd)
 	connman_dbus_property_changed_dict(acd->path, CONNMAN_SERVICE_INTERFACE,
 			"LastAddressConflict", append_ac_property, acd);
 }
+
+unsigned int acdhost_get_conflicts_count(ACDHost *acd)
+{
+	return acd->conflicts;
+}
