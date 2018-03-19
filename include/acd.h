@@ -53,6 +53,8 @@ void acdhost_register_event(ACDHost *acd,
 
 void acdhost_append_dbus_property(ACDHost *acd, DBusMessageIter *dict);
 
+unsigned int acdhost_get_conflicts_count(ACDHost *acd);
+
 #ifdef __cplusplus
 }
 #endif
