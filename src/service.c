@@ -40,6 +40,7 @@
 #include "connman.h"
 
 #define CONNECT_TIMEOUT		120
+#define DHCP_RETRY_TIMEOUT	10
 
 static DBusConnection *connection = NULL;
 
@@ -7620,11 +7621,31 @@ static void acdhost_ipv4_lost(ACDHost *acd, gpointer user_data)
 static void acdhost_ipv4_conflict(ACDHost *acd, gpointer user_data)
 {
 	struct connman_service *service = user_data;
+	struct connman_network *network;
+	enum connman_ipconfig_method method;
 
-	/* Start IPv4LL ACD. */
-	if (service_start_ipv4ll(service) < 0)
-		connman_error("Could not start IPv4LL. "
-				"No address will be assigned");
+	method = __connman_ipconfig_get_method(service->ipconfig_ipv4);
+
+	connman_info("%s conflict counts=%u", __FUNCTION__,
+			acdhost_get_conflicts_count(acd));
+	if (method == CONNMAN_IPCONFIG_METHOD_DHCP &&
+			acdhost_get_conflicts_count(acd) < 2) {
+		connman_info("%s Sending DHCP decline", __FUNCTION__);
+		__connman_dhcp_decline(service->ipconfig_ipv4);
+
+		network = __connman_service_get_network(service);
+		connman_network_set_connected_dhcp_later(network, DHCP_RETRY_TIMEOUT);
+		__connman_ipconfig_set_local(service->ipconfig_ipv4, NULL);
+	} else {
+		if (method == CONNMAN_IPCONFIG_METHOD_DHCP) {
+			__connman_ipconfig_set_method(service->ipconfig_ipv4,
+					CONNMAN_IPCONFIG_METHOD_AUTO);
+		}
+		/* Start IPv4LL ACD. */
+		if (service_start_ipv4ll(service) < 0)
+			connman_error("Could not start IPv4LL. "
+					"No address will be assigned");
+	}
 }
 
 static void acdhost_ipv4_maxconflict(ACDHost *acd, gpointer user_data)
