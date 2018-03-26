@@ -7640,6 +7640,7 @@ static void acdhost_ipv4_conflict(ACDHost *acd, gpointer user_data)
 		if (method == CONNMAN_IPCONFIG_METHOD_DHCP) {
 			__connman_ipconfig_set_method(service->ipconfig_ipv4,
 					CONNMAN_IPCONFIG_METHOD_AUTO);
+			__connman_dhcp_decline(service->ipconfig_ipv4);
 		}
 		/* Start IPv4LL ACD. */
 		if (service_start_ipv4ll(service) < 0)
