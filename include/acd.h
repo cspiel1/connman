@@ -35,6 +35,8 @@ struct _acd_host;
 typedef struct _acd_host acd_host;
 
 acd_host *acdhost_new(int ifindex);
+int acdhost_start(acd_host *acd, uint32_t ip);
+void acdhost_stop(acd_host *acd);
 
 typedef void (*ACDHostEventFunc) (acd_host *acd, gpointer user_data);
 

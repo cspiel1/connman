@@ -1538,6 +1538,9 @@ int __connman_network_disconnect(struct connman_network *network)
 
 	DBG("network %p", network);
 
+	if (network->acdhost)
+		acdhost_stop(network->acdhost);
+
 	if (!network->connected && !network->connecting &&
 						!network->associating)
 		return -ENOTCONN;
