@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <string.h>
 
+#include <connman/acd.h>
 #include "connman.h"
 
 /*
@@ -67,6 +68,7 @@ struct connman_network {
 	int index;
 	int router_solicit_count;
 	int router_solicit_refresh_count;
+	acd_host *acdhost;
 
 	struct connman_network_driver *driver;
 	void *driver_data;
@@ -154,6 +156,25 @@ static void set_configuration(struct connman_network *network,
 					type);
 }
 
+static int start_acd(struct connman_network *network)
+{
+	struct connman_service *service;
+	struct connman_ipconfig *ipconfig_ipv4;
+
+	service = connman_service_lookup_from_network(network);
+
+	if (!service)
+		return -EINVAL;
+
+	ipconfig_ipv4 = __connman_service_get_ip4config(service);
+	if (!ipconfig_ipv4) {
+		connman_error("Service has no IPv4 configuration");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static void dhcp_success(struct connman_network *network)
 {
 	struct connman_service *service;
@@ -170,6 +191,14 @@ static void dhcp_success(struct connman_network *network)
 
 	if (!ipconfig_ipv4)
 		return;
+
+	if (connman_setting_get_bool("AddressConflictDetection")) {
+		err = start_acd(network);
+		if (!err)
+			return;
+
+		/* On error proceed without ACD. */
+	}
 
 	err = __connman_ipconfig_address_add(ipconfig_ipv4);
 	if (err < 0)
@@ -236,6 +265,14 @@ static int set_connected_manual(struct connman_network *network)
 
 	if (!__connman_ipconfig_get_local(ipconfig))
 		__connman_service_read_ip4config(service);
+
+	if (connman_setting_get_bool("AddressConflictDetection")) {
+		err = start_acd(network);
+		if (!err)
+			return 0;
+
+		/* On error proceed without ACD. */
+	}
 
 	err = __connman_ipconfig_address_add(ipconfig);
 	if (err < 0)
@@ -920,6 +957,7 @@ static void network_destruct(struct connman_network *network)
 	g_free(network->node);
 	g_free(network->name);
 	g_free(network->identifier);
+	g_free(network->acdhost);
 
 	network->device = NULL;
 
@@ -955,6 +993,7 @@ struct connman_network *connman_network_create(const char *identifier,
 
 	network->type       = type;
 	network->identifier = ident;
+	network->acdhost = NULL;
 
 	network_list = g_slist_prepend(network_list, network);
 
