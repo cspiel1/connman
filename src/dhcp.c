@@ -39,6 +39,7 @@
 
 #include <glib.h>
 
+#include "src/shared/random.h"
 #include "connman.h"
 
 #define RATE_LIMIT_INTERVAL	60	/* delay between successive attempts */
@@ -762,5 +763,5 @@ void __connman_dhcp_cleanup(void)
 	g_hash_table_destroy(ipconfig_table);
 	ipconfig_table = NULL;
 
-	dhcp_cleanup_random();
+	cleanup_random();
 }

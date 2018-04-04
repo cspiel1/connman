@@ -37,6 +37,7 @@
 
 #include <gdbus.h>
 
+#include "shared/random.h"
 #include "connman.h"
 
 #define DEFAULT_INPUT_REQUEST_TIMEOUT (120 * 1000)
@@ -867,6 +868,8 @@ int main(int argc, char *argv[])
 
 	g_free(option_debug);
 	g_free(option_wifi);
+
+	cleanup_random();
 
 	return 0;
 }
