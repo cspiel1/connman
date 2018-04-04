@@ -19,16 +19,21 @@
  */
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
 
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/ioctl.h>
+
 #include <netpacket/packet.h>
 #include <net/ethernet.h>
 #include <netinet/if_ether.h>
 #include <net/if_arp.h>
+
+#include <linux/if.h>
 
 #include <arpa/inet.h>
 
@@ -106,3 +111,36 @@ int arp_socket(int ifindex)
 
 	return fd;
 }
+
+void get_interface_mac_address(int index, uint8_t *mac_address)
+{
+	struct ifreq ifr;
+	int sk, err;
+
+	sk = socket(PF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+	if (sk < 0) {
+		perror("Open socket error");
+		return;
+	}
+
+	memset(&ifr, 0, sizeof(ifr));
+	ifr.ifr_ifindex = index;
+
+	err = ioctl(sk, SIOCGIFNAME, &ifr);
+	if (err < 0) {
+		perror("Get interface name error");
+		goto done;
+	}
+
+	err = ioctl(sk, SIOCGIFHWADDR, &ifr);
+	if (err < 0) {
+		perror("Get MAC address error");
+		goto done;
+	}
+
+	memcpy(mac_address, ifr.ifr_hwaddr.sa_data, ETH_ALEN);
+
+done:
+	close(sk);
+}
+
