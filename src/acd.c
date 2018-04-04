@@ -55,6 +55,15 @@ struct acd_host {
 	unsigned int conflicts;
 	guint timeout;
 	guint listener_watch;
+
+	ACDHostEventFunc ipv4_available_cb;
+	gpointer ipv4_available_data;
+	ACDHostEventFunc ipv4_lost_cb;
+	gpointer ipv4_lost_data;
+	ACDHostEventFunc ipv4_conflict_cb;
+	gpointer ipv4_conflict_data;
+	ACDHostEventFunc ipv4_max_conflicts_cb;
+	gpointer ipv4_max_conflicts_data;
 };
 
 static int start_listening(struct acd_host *acd);
@@ -115,6 +124,11 @@ struct acd_host *acd_host_new(int ifindex)
 	acd->ifindex = ifindex;
 	acd->listener_watch = 0;
 	acd->retry_times = 0;
+
+	acd->ipv4_available_cb = NULL;
+	acd->ipv4_lost_cb = NULL;
+	acd->ipv4_conflict_cb = NULL;
+	acd->ipv4_max_conflicts_cb = NULL;
 
 	return acd;
 
