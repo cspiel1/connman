@@ -49,7 +49,8 @@ endif
 
 shared_sources = src/shared/util.h src/shared/util.c \
 		src/shared/netlink.h src/shared/netlink.c \
-		src/shared/random.h src/shared/random.c
+		src/shared/random.h src/shared/random.c \
+		src/shared/arp.h src/shared/arp.c
 
 if DATAFILES
 
