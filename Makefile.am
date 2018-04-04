@@ -11,7 +11,8 @@ include_HEADERS = include/log.h include/plugin.h \
 			include/device.h include/network.h include/inet.h \
 			include/storage.h include/provision.h \
 			include/session.h include/ipaddress.h include/agent.h \
-			include/inotify.h include/peer.h include/machine.h
+			include/inotify.h include/peer.h include/machine.h \
+			include/acd.h
 
 nodist_include_HEADERS = include/version.h
 
@@ -124,7 +125,8 @@ src_connmand_SOURCES = $(gdhcp_sources) $(gweb_sources) $(backtrace_sources) \
 			src/stats.c src/6to4.c \
 			src/ippool.c src/bridge.c src/nat.c src/ipaddress.c \
 			src/inotify.c src/ipv6pd.c src/peer.c \
-			src/peer_service.c src/machine.c src/util.c
+			src/peer_service.c src/machine.c src/util.c \
+			src/acd.c
 
 if INTERNAL_DNS_BACKEND
 src_connmand_SOURCES += src/dnsproxy.c
