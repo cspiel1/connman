@@ -25,6 +25,7 @@
 
 #include <stdint.h>
 #include <glib.h>
+#include <gdbus.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,7 +35,7 @@ struct _acd_host;
 
 typedef struct _acd_host acd_host;
 
-acd_host *acdhost_new(int ifindex);
+acd_host *acdhost_new(int ifindex, const char* path);
 int acdhost_start(acd_host *acd, uint32_t ip);
 void acdhost_stop(acd_host *acd);
 
@@ -51,6 +52,8 @@ void acdhost_register_event(acd_host *acd,
 			    ACDHostEvent event,
 			    ACDHostEventFunc func,
 			    gpointer user_data);
+
+void acdhost_append_dbus_property(acd_host *acd, DBusMessageIter *dict);
 
 #ifdef __cplusplus
 }

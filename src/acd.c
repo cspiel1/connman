@@ -21,6 +21,7 @@
 #include <connman/log.h>
 #include <connman/inet.h>
 #include <glib.h>
+#include <connman/dbus.h>
 #include "src/shared/arp.h"
 #include "src/shared/random.h"
 #include <errno.h>
@@ -52,6 +53,13 @@ struct _acd_host {
 	uint8_t mac_address[6];
 	uint32_t requested_ip; /* host byte order */
 
+	/* address conflict fields */
+	uint32_t ac_ip; /* host byte order */
+	uint8_t ac_mac[6];
+	gint64 ac_timestamp;
+	bool ac_resolved;
+	const char *path;
+
 	bool listen_on;
 	int listener_sockfd;
 	unsigned int retry_times;
@@ -80,6 +88,9 @@ static gboolean send_announce_packet(gpointer acd_data);
 static gboolean acd_announce_timeout(gpointer acd_data);
 static gboolean acd_defend_timeout(gpointer acd_data);
 
+/* for DBus property */
+static void report_conflict(acd_host *acd);
+
 static void debug(acd_host *acd, const char *format, ...)
 {
 	char str[256];
@@ -93,7 +104,7 @@ static void debug(acd_host *acd, const char *format, ...)
 	va_end(ap);
 }
 
-acd_host *acdhost_new(int ifindex)
+acd_host *acdhost_new(int ifindex, const char *path)
 {
 	acd_host *acd;
 
@@ -132,6 +143,12 @@ acd_host *acdhost_new(int ifindex)
 	acd->ipv4_lost_cb = NULL;
 	acd->ipv4_conflict_cb = NULL;
 	acd->ipv4_max_conflicts_cb = NULL;
+
+	acd->ac_ip = 0;
+	memset(acd->ac_mac, 0, sizeof(acd->ac_mac));
+	acd->ac_timestamp = 0;
+	acd->ac_resolved = true;
+	acd->path = path;
 
 	return acd;
 
@@ -346,6 +363,11 @@ static gboolean acd_defend_timeout(gpointer acd_data)
 	return FALSE;
 }
 
+static bool is_link_local(uint32_t ip)
+{
+	return (ip & LINKLOCAL_ADDR) == LINKLOCAL_ADDR;
+}
+
 static gboolean acd_announce_timeout(gpointer acd_data)
 {
 	acd_host *acd = acd_data;
@@ -361,6 +383,11 @@ static gboolean acd_announce_timeout(gpointer acd_data)
 
 	debug(acd, "switching to monitor mode");
 	acd->state = ACD_MONITOR;
+
+	if (!acd->ac_resolved && !is_link_local(acd->requested_ip)) {
+		acd->ac_resolved = true;
+		report_conflict(acd);
+	}
 
 	if (acd->ipv4_available_cb)
 		acd->ipv4_available_cb(acd,
@@ -438,6 +465,14 @@ static int acd_recv_arp_packet(acd_host *acd) {
 	}
 
 	if (acd->conflicts < MAX_CONFLICTS) {
+		if (!is_link_local(acd->requested_ip)) {
+			acd->ac_ip = acd->requested_ip;
+			memcpy(acd->ac_mac, arp.arp_sha, sizeof(acd->ac_mac));
+			acd->ac_timestamp = g_get_real_time();
+			acd->ac_resolved = false;
+			report_conflict(acd);
+		}
+
 		acdhost_stop(acd);
 
 		/* we need a new request_ip */
@@ -483,3 +518,50 @@ void acdhost_register_event(acd_host *acd,
 	}
 }
 
+static void append_ac_mac(DBusMessageIter *iter, void *user_data)
+{
+	acd_host *acd = user_data;
+	char mac[32];
+	uint8_t *m = acd->ac_mac;
+	const char *str = mac;
+	snprintf(mac, sizeof(mac), "%02x:%02x:%02x:%02x:%02x:%02x",
+			m[0], m[1], m[2], m[3], m[4], m[5]);
+	connman_dbus_dict_append_basic(iter, "Address",	DBUS_TYPE_STRING, &str);
+}
+
+static void append_ac_ipv4(DBusMessageIter *iter, void *user_data)
+{
+	acd_host *acd = user_data;
+	struct in_addr addr;
+	char *a;
+
+	addr.s_addr = htonl(acd->ac_ip);
+	a = inet_ntoa(addr);
+	if (!a)
+		a = "";
+	connman_dbus_dict_append_basic(iter, "Address",	DBUS_TYPE_STRING, &a);
+}
+
+static void append_ac_property(DBusMessageIter *iter, void *user_data)
+{
+	acd_host *acd = user_data;
+
+	connman_dbus_dict_append_dict(iter, "IPv4", append_ac_ipv4, acd);
+	connman_dbus_dict_append_dict(iter, "Ethernet",	append_ac_mac, acd);
+	connman_dbus_dict_append_basic(iter, "Timestamp", DBUS_TYPE_INT64,
+			&acd->ac_timestamp);
+	connman_dbus_dict_append_basic(iter, "Resolved", DBUS_TYPE_BOOLEAN,
+			&acd->ac_resolved);
+}
+
+void acdhost_append_dbus_property(acd_host *acd, DBusMessageIter *dict)
+{
+	connman_dbus_dict_append_dict(dict, "LastAddressConflict",
+			append_ac_property, acd);
+}
+
+static void report_conflict(acd_host *acd)
+{
+	connman_dbus_property_changed_dict(acd->path, CONNMAN_SERVICE_INTERFACE,
+			"LastAddressConflict", append_ac_property, acd);
+}
