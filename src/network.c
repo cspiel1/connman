@@ -234,17 +234,29 @@ static int start_ipv4ll(struct connman_network *network)
 		return -EINVAL;
 	}
 
-	/* Apply random IPv4 address. */
-	addr.s_addr = htonl(random_ip());
-	address = inet_ntoa(addr);
-	if (!address) {
-		connman_error("Could not convert IPv4LL random address %u",
-				addr.s_addr);
-		return -EINVAL;
+	/* Was the conflict address already IPv4LL? Then we need a new random. */
+	bool userandom = __connman_ipconfig_is_link_local(ipconfig_ipv4);
+	connman_info("Had already IPv4LL? %d", userandom);
+	if (!userandom) {
+		/* Maybe we stored already an IPv4LL address. */
+		__connman_service_read_ip4config(service);
+		userandom = !__connman_ipconfig_is_link_local(ipconfig_ipv4);
 	}
-	__connman_ipconfig_set_local(ipconfig_ipv4, address);
 
-	connman_info("Probing IPv4LL address %s", address);
+	if (userandom) {
+		/* Apply random IPv4 address. */
+		addr.s_addr = htonl(random_ip());
+		address = inet_ntoa(addr);
+		if (!address) {
+			connman_error("Could not convert IPv4LL random address %u",
+					addr.s_addr);
+			return -EINVAL;
+		}
+		__connman_ipconfig_set_local(ipconfig_ipv4, address);
+	}
+
+	connman_info("Probing IPv4LL address %s",
+			__connman_ipconfig_get_local(ipconfig_ipv4));
 	return start_acd(network);
 }
 
