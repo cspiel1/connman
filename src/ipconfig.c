@@ -1524,6 +1524,14 @@ bool __connman_ipconfig_is_usable(struct connman_ipconfig *ipconfig)
 	return true;
 }
 
+bool __connman_ipconfig_is_link_local(struct connman_ipconfig *ipconfig)
+{
+	if (!ipconfig->address)
+		return false;
+
+	return strncmp(ipconfig->address->local, "169.254.", 8)==0;
+}
+
 int __connman_ipconfig_enable(struct connman_ipconfig *ipconfig)
 {
 	struct connman_ipdevice *ipdevice;
