@@ -32,10 +32,6 @@ gdbus_libgdbus_internal_la_SOURCES = gdbus/gdbus.h \
 				gdbus/mainloop.c gdbus/watch.c \
 				gdbus/object.c gdbus/client.c gdbus/polkit.c
 
-if BACKTRACE
-backtrace_sources = src/backtrace.c
-endif
-
 gdhcp_sources = gdhcp/gdhcp.h gdhcp/common.h gdhcp/common.c gdhcp/client.c \
 		gdhcp/server.c gdhcp/ipv4ll.h gdhcp/ipv4ll.c gdhcp/unaligned.h
 
