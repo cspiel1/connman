@@ -28,6 +28,7 @@
 
 #include "connman.h"
 #include <connman/acd.h>
+#include "src/shared/arp.h"
 
 /*
  * How many times to send RS with the purpose of
@@ -156,10 +157,28 @@ static void set_configuration(struct connman_network *network,
 					type);
 }
 
+static void acdhost_ipv4_available(struct acd_host *acd, gpointer user_data)
+{
+}
+
+static void acdhost_ipv4_lost(struct acd_host *acd, gpointer user_data)
+{
+}
+
+static void acdhost_ipv4_conflict(struct acd_host *acd, gpointer user_data)
+{
+}
+
+static void acdhost_ipv4_maxconflict(struct acd_host *acd, gpointer user_data)
+{
+}
+
 static int start_acd(struct connman_network *network)
 {
 	struct connman_service *service;
 	struct connman_ipconfig *ipconfig_ipv4;
+	const char* address;
+	struct in_addr addr;
 
 	service = connman_service_lookup_from_network(network);
 	if (!service)
@@ -170,6 +189,40 @@ static int start_acd(struct connman_network *network)
 		connman_error("Service has no IPv4 configuration");
 		return -EINVAL;
 	}
+
+	if (!network->acdhost) {
+		int index;
+
+		index = __connman_ipconfig_get_index(ipconfig_ipv4);
+		network->acdhost = acd_host_new(index);
+		if (!network->acdhost) {
+			connman_error("Could not create ACD data structure");
+			return -EINVAL;
+		}
+
+		acdhost_register_event(network->acdhost,
+				ACDHOST_EVENT_IPV4_AVAILABLE,
+				acdhost_ipv4_available, network);
+		acdhost_register_event(network->acdhost,
+				ACDHOST_EVENT_IPV4_LOST,
+				acdhost_ipv4_lost, network);
+		acdhost_register_event(network->acdhost,
+				ACDHOST_EVENT_IPV4_CONFLICT,
+				acdhost_ipv4_conflict, network);
+		acdhost_register_event(network->acdhost,
+				ACDHOST_EVENT_IPV4_MAXCONFLICT,
+				acdhost_ipv4_maxconflict, network);
+	}
+
+	address = __connman_ipconfig_get_local(ipconfig_ipv4);
+	if (!address)
+		return -EINVAL;
+
+	connman_info("Starting ACD for address %s", address);
+	if (inet_pton(AF_INET, address, &addr) != 1)
+		connman_error("Could not convert address %s", address);
+
+	acdhost_start(network->acdhost, htonl(addr.s_addr));
 
 	return 0;
 }
