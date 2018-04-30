@@ -227,7 +227,7 @@ static void send_probe_packet(gpointer acd_data)
 
 	if (acd->retry_times < PROBE_NUM) {
 		/* Add a random timeout in range of PROBE_MIN to PROBE_MAX. */
-		timeout = random_delay_ms(PROBE_MAX-PROBE_MIN);
+		timeout = __connman_util_random_delay_ms(PROBE_MAX-PROBE_MIN);
 		timeout += PROBE_MIN * 1000;
 	} else
 		timeout = ANNOUNCE_WAIT * 1000;
@@ -286,4 +286,58 @@ static gboolean send_announce_packet(gpointer acd_data)
 						acd,
 						NULL);
 	return TRUE;
+}
+
+int acdhost_start(struct acd_host *acd, uint32_t ip)
+{
+	guint timeout;
+	int err;
+
+	remove_timeout(acd);
+
+	err = start_listening(acd);
+	if (err)
+		return err;
+
+	acd->retry_times = 0;
+	acd->requested_ip = ip;
+
+	/* First wait a random delay to avoid storm of ARP requests on boot */
+	timeout = __connman_util_random_delay_ms(PROBE_WAIT);
+	acd->state = ACD_PROBE;
+
+	acd->timeout = g_timeout_add_full(G_PRIORITY_HIGH,
+						timeout,
+						acd_probe_timeout,
+						acd,
+						NULL);
+	return 0;
+}
+
+void acdhost_stop(struct acd_host *acd)
+{
+
+	stop_listening(acd);
+
+	remove_timeout(acd);
+
+	if (acd->listener_watch > 0) {
+		g_source_remove(acd->listener_watch);
+		acd->listener_watch = 0;
+	}
+
+	acd->state = ACD_PROBE;
+	acd->retry_times = 0;
+	acd->requested_ip = 0;
+}
+
+static gboolean acd_defend_timeout(gpointer acd_data)
+{
+}
+
+static gboolean acd_announce_timeout(gpointer acd_data)
+{
+}
+
+static int acd_recv_arp_packet(struct acd_host *acd) {
 }
