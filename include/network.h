@@ -24,6 +24,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <dbus/dbus.h>
 
 #include <connman/device.h>
 #include <connman/ipconfig.h>
@@ -161,6 +162,9 @@ struct connman_network_driver {
 
 int connman_network_driver_register(struct connman_network_driver *driver);
 void connman_network_driver_unregister(struct connman_network_driver *driver);
+
+void connman_network_append_acddbus(DBusMessageIter *dict,
+		struct connman_network *network);
 
 #ifdef __cplusplus
 }
