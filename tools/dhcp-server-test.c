@@ -28,6 +28,7 @@
 #include <string.h>
 
 #include <gdhcp/gdhcp.h>
+#include <connman/log.h>
 
 static GMainLoop *main_loop;
 
@@ -86,7 +87,7 @@ int main(int argc, char *argv[])
 
 	index = atoi(argv[1]);
 
-	printf("Create DHCP server for interface %d\n", index);
+	DBG("Create DHCP server for interface %d\n", index);
 
 	dhcp_server = g_dhcp_server_new(G_DHCP_IPV4, index, &error);
 	if (!dhcp_server) {
@@ -104,7 +105,7 @@ int main(int argc, char *argv[])
 							"192.168.0.102");
 	main_loop = g_main_loop_new(NULL, FALSE);
 
-	printf("Start DHCP Server operation\n");
+	DBG("Start DHCP Server operation\n");
 
 	g_dhcp_server_start(dhcp_server);
 

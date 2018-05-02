@@ -36,6 +36,7 @@
 #include <linux/if_arp.h>
 
 #include <gdhcp/gdhcp.h>
+#include <connman/log.h>
 
 static GTimer *timer;
 
@@ -140,7 +141,7 @@ int main(int argc, char *argv[])
 
 	index = atoi(argv[1]);
 
-	printf("Create DHCP client for interface %d\n", index);
+	DBG("Create DHCP client for interface %d\n", index);
 
 	dhcp_client = g_dhcp_client_new(G_DHCP_IPV4, index, &error);
 	if (!dhcp_client) {
@@ -166,7 +167,7 @@ int main(int argc, char *argv[])
 
 	main_loop = g_main_loop_new(NULL, FALSE);
 
-	printf("Start DHCP operation\n");
+	DBG("Start DHCP operation\n");
 
 	timer = g_timer_new();
 
